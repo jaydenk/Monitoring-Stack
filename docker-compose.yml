@@ -1,0 +1,152 @@
+services:
+  prometheus:
+    image: prom/prometheus       # Prometheus server (use latest v2.x stable)
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - proxy
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro  # Prometheus configuration (see below)
+      - prometheus-data:/prometheus        # Persist Prometheus TSDB data
+      - /etc/localtime:/etc/localtime:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+      - "--storage.tsdb.retention.size=20GB"
+    ports:
+      - "9090:9090"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${HOSTNAME}`)"   # CHANGE to your domain or host
+      - "traefik.http.routers.prometheus.entrypoints=web-secure"
+      - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  grafana:
+    image: grafana/grafana      # Grafana server (latest version for Arm64)
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - proxy
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=changeme        # Change Grafana admin password
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_PATHS_DATA=/var/lib/grafana
+    volumes:
+      - grafana-data:/var/lib/grafana      # Persist Grafana database (dashboards, users)
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`dashboard.${HOSTNAME}`)"       # CHANGE host for Grafana
+      - "traefik.http.routers.grafana.entrypoints=web-secure"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  loki:
+    image: grafana/loki          # Loki log database
+    container_name: loki
+    restart: unless-stopped
+    networks:
+      - proxy
+    # Default config (boltdb+filesystem storage). Consider mounting a custom config file if needed.
+    volumes:
+      - ./loki-data:/tmp/loki     # Persist Loki data (indexes/chunks) - default path is /tmp/loki [oai_citation:2‡github.com](https://github.com/grafana/loki/issues/7748#:~:text=Chenge%20default%20data%20location%20to,enough%20for%20a%20first%20iteration)
+      - /etc/localtime:/etc/localtime:ro    
+    ports:
+      - "3100:3100"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`loki.${HOSTNAME}`)"           # OPTIONAL: expose Loki API externally
+      - "traefik.http.routers.loki.entrypoints=web-secure"
+      - "traefik.http.routers.loki.tls.certresolver=letsencrypt"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
+
+  node-exporter:
+    image: prom/node-exporter     # Node Exporter for host metrics
+    container_name: node-exporter
+    restart: unless-stopped
+    privileged: true                     # Needed to access host resources
+    network_mode: host                   # Alternatively, use port mapping instead of host mode
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /etc/localtime:/etc/localtime:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.ignored-mount-points" 
+      - "^/(rootfs/)?(dev|etc|host|proc|run|sys|volume1)($$|/)"  # Ignore pseudo FS and Synology volumes [oai_citation:3‡github.com](https://github.com/ddiiwoong/synology-prometheus/blob/master/docker-compose.yml#:~:text=)
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor  # cAdvisor for Docker metrics (multi-arch image)
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw        # includes Docker socket for cAdvisor [oai_citation:4‡webhi.com](https://www.webhi.com/how-to/docker-monitoring-using-prometheus-cadvisor-node-exporter-grafana/#:~:text=%24%20docker%20run%20%5C%20,detach%3Dtrue%20%5C%20gcr.io%2Fcadvisor%2Fcadvisor%3Alatest)
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /etc/localtime:/etc/localtime:ro
+
+#   pihole-exporter:
+#     image: ekofr/pihole-exporter:latest    # Pi-hole exporter for Prometheus
+#     container_name: pihole-exporter
+#     restart: unless-stopped
+#     environment:
+#       - PIHOLE_HOSTNAME=127.0.0.1          # Pi-hole API address (Pi-hole running on pimento)
+#       - PIHOLE_PASSWORD=${PI_HOLE_API_TOKEN}        # Pi-hole API token or password (insert yours)
+#       - PORT=9617                         # Exporter’s web port for metrics [oai_citation:5‡github.com](https://github.com/eko/pihole-exporter#:~:text=%24%20docker%20run%20%5C%20,exporter%3Alatest)
+#     ports:
+#       - "9617:9617"                       # Expose metrics for Prometheus scrape
+#     volumes:
+#       - /etc/localtime:/etc/localtime:ro
+# 
+#   unpoller:
+#     image: ghcr.io/unpoller/unpoller:latest
+#     container_name: unpoller
+#     restart: unless-stopped
+#     environment:
+#       # Disable InfluxDB output, enable Prometheus output on port 9130 [oai_citation:6‡unpoller.com](https://unpoller.com/docs/install/dockercompose/#:~:text=UP_INFLUXDB_DISABLE%3D,true)
+#       - UP_INFLUXDB_DISABLE=true
+#       - UP_PROMETHEUS_HTTP_LISTEN=0.0.0.0:9130
+#       - UP_UNIFI_CONTROLLER_0_URL=https://<unifi-controller-ip>:8443    # Unifi Controller URL (adjust as needed)
+#       - UP_UNIFI_CONTROLLER_0_USER=<unifi-user>    # Unifi Controller username (set up for poller)
+#       - UP_UNIFI_CONTROLLER_0_PASS=<unifi-pass>    # Unifi Controller password
+#       - UP_UNIFI_CONTROLLER_0_SAVE_DPI=true        # Sample config to save various data
+#       - UP_UNIFI_CONTROLLER_0_SAVE_IDS=true
+#       - UP_UNIFI_CONTROLLER_0_SAVE_ANOMALIES=true
+#     ports:
+#       - "9130:9130"                     # Expose Unpoller metrics on port 9130
+#     volumes:
+#       - /etc/localtime:/etc/localtime:ro
+
+#   fluent-bit:
+#     image: fluent/fluent-bit       # Fluent Bit log shipper (supports arm64)
+#     container_name: fluent-bit
+#     restart: unless-stopped
+#     user: root                          # Run as root to read system logs [oai_citation:7‡stackoverflow.com](https://stackoverflow.com/questions/64333292/how-to-access-logs-logged-in-journald-using-fluent-bit-thats-inside-a-docker-co#:~:text=1,bind%20%2Frun%2Flog%2Fjournal%3A%2Frun%2Flog%2Fjournal)
+#     network_mode: host                  # Use host network (so it can reach Loki via localhost and send logs)
+#     volumes:
+#       - /etc/localtime:/etc/localtime:ro
+#       - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro   # Fluent Bit config (see below)
+#       - /etc/machine-id:/etc/machine-id:ro        # Access host journald identifier [oai_citation:8‡stackoverflow.com](https://stackoverflow.com/questions/64333292/how-to-access-logs-logged-in-journald-using-fluent-bit-thats-inside-a-docker-co#:~:text=network_mode%3A%20host%20command%3A%20%2Ffluent,%2Frun%2Flog%2Fjournal%3A%2Frun%2Flog%2Fjournal)
+#       - /run/log/journal:/run/log/journal:ro      # Access host journald logs [oai_citation:9‡stackoverflow.com](https://stackoverflow.com/questions/64333292/how-to-access-logs-logged-in-journald-using-fluent-bit-thats-inside-a-docker-co#:~:text=network_mode%3A%20host%20command%3A%20%2Ffluent,%2Frun%2Flog%2Fjournal%3A%2Frun%2Flog%2Fjournal)
+#     # (Optionally, mount /var/log if needed to tail specific log files)
+    
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  
+networks:
+  proxy:
+    external: true

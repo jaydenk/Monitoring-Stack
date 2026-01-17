@@ -1,0 +1,52 @@
+services:
+  node-exporter:
+    image: prom/node-exporter       # Use an image tag that supports ARMv7
+    container_name: node-exporter
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /etc/localtime:/etc/localtime:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.ignored-mount-points"
+      - "^/(rootfs/)?(dev|etc|host|proc|run|sys|volume1)($$|/)" 
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor   # Multi-arch image (will pull arm variant for Pi 3)
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw 
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /etc/localtime:/etc/localtime:ro
+
+#   pihole-exporter:
+#     image: ekofr/pihole-exporter:latest
+#     container_name: pihole-exporter
+#     restart: unless-stopped
+#     environment:
+#       - PIHOLE_HOSTNAME=127.0.0.1            # Pi-hole on this host (capsicum)
+#       - PIHOLE_PASSWORD=<API_TOKEN>          # Pi-hole API token for capsicum’s Pi-hole
+#       - PORT=9617
+#     ports:
+#       - "9617:9617"
+# 
+#   fluent-bit:
+#     image: fluent/fluent-bit:2.1      # Fluent Bit (ensure it’s an arm32-compatible tag if needed)
+#     container_name: fluent-bit
+#     restart: unless-stopped
+#     user: root
+#     network_mode: host
+#     volumes:
+#       - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+#       - /etc/machine-id:/etc/machine-id:ro
+#       - /run/log/journal:/run/log/journal:ro
