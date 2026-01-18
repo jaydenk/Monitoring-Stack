@@ -21,13 +21,22 @@ services:
     container_name: cadvisor
     restart: unless-stopped
     ports:
-      - "8081:8080"
+      - "${TAILSCALE_IP}:${CADVISOR_PORT:-8080}:8080"   # Bind to Tailscale IP only (set TAILSCALE_IP and optionally CADVISOR_PORT in .env)
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:rw 
+      - /var/run:/var/run:rw
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
       - /etc/localtime:/etc/localtime:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 #   pihole-exporter:
 #     image: ekofr/pihole-exporter:latest
