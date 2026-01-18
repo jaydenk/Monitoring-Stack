@@ -57,6 +57,7 @@ services:
     network_mode: host
     environment:
       - NODE_HOSTNAME=${NODE_HOSTNAME}   # Set in .env for log labels
+      - LD_PRELOAD=                      # Disable jemalloc (fixes 16KB page size issue on ARM64)
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./fluent-bit/fluent-bit-node.conf:/fluent-bit/etc/fluent-bit.conf:ro

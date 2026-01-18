@@ -126,6 +126,8 @@ services:
     restart: unless-stopped
     user: root                          # Run as root to read system logs
     network_mode: host                  # Use host network (so it can reach Loki via localhost)
+    environment:
+      - LD_PRELOAD=                     # Disable jemalloc (fixes 16KB page size issue on ARM64)
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
