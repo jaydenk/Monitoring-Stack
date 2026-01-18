@@ -14,6 +14,7 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
       - "--storage.tsdb.retention.size=20GB"
+      - "--log.level=debug"
     ports:
       - "9090:9090"
     labels:
@@ -64,7 +65,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.loki.rule=Host(`loki.${HOSTNAME}`)"           # OPTIONAL: expose Loki API externally
       - "traefik.http.routers.loki.entrypoints=web-secure"
-      - "traefik.http.routers.loki.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.loki.tls.certresolver=myresolver"
       - "traefik.http.services.loki.loadbalancer.server.port=3100"
 
   node-exporter:
@@ -110,25 +111,6 @@ services:
 #     volumes:
 #       - /etc/localtime:/etc/localtime:ro
 # 
-#   unpoller:
-#     image: ghcr.io/unpoller/unpoller:latest
-#     container_name: unpoller
-#     restart: unless-stopped
-#     environment:
-#       # Disable InfluxDB output, enable Prometheus output on port 9130 [oai_citation:6‡unpoller.com](https://unpoller.com/docs/install/dockercompose/#:~:text=UP_INFLUXDB_DISABLE%3D,true)
-#       - UP_INFLUXDB_DISABLE=true
-#       - UP_PROMETHEUS_HTTP_LISTEN=0.0.0.0:9130
-#       - UP_UNIFI_CONTROLLER_0_URL=https://<unifi-controller-ip>:8443    # Unifi Controller URL (adjust as needed)
-#       - UP_UNIFI_CONTROLLER_0_USER=<unifi-user>    # Unifi Controller username (set up for poller)
-#       - UP_UNIFI_CONTROLLER_0_PASS=<unifi-pass>    # Unifi Controller password
-#       - UP_UNIFI_CONTROLLER_0_SAVE_DPI=true        # Sample config to save various data
-#       - UP_UNIFI_CONTROLLER_0_SAVE_IDS=true
-#       - UP_UNIFI_CONTROLLER_0_SAVE_ANOMALIES=true
-#     ports:
-#       - "9130:9130"                     # Expose Unpoller metrics on port 9130
-#     volumes:
-#       - /etc/localtime:/etc/localtime:ro
-
 #   fluent-bit:
 #     image: fluent/fluent-bit       # Fluent Bit log shipper (supports arm64)
 #     container_name: fluent-bit
