@@ -49,13 +49,19 @@ services:
 #     ports:
 #       - "9617:9617"
 # 
-#   fluent-bit:
-#     image: fluent/fluent-bit:2.1      # Fluent Bit (ensure it’s an arm32-compatible tag if needed)
-#     container_name: fluent-bit
-#     restart: unless-stopped
-#     user: root
-#     network_mode: host
-#     volumes:
-#       - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
-#       - /etc/machine-id:/etc/machine-id:ro
-#       - /run/log/journal:/run/log/journal:ro
+  fluent-bit:
+    image: fluent/fluent-bit       # Fluent Bit log shipper (supports arm64)
+    container_name: fluent-bit
+    restart: unless-stopped
+    user: root
+    network_mode: host
+    environment:
+      - NODE_HOSTNAME=${NODE_HOSTNAME}   # Set in .env for log labels
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./fluent-bit/fluent-bit-node.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
