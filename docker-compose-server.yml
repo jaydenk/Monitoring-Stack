@@ -90,13 +90,22 @@ services:
     container_name: cadvisor
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "100.117.69.115:8080:8080"   # Bind to Tailscale IP only (pimento)
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:rw        # includes Docker socket for cAdvisor [oai_citation:4‡webhi.com](https://www.webhi.com/how-to/docker-monitoring-using-prometheus-cadvisor-node-exporter-grafana/#:~:text=%24%20docker%20run%20%5C%20,detach%3Dtrue%20%5C%20gcr.io%2Fcadvisor%2Fcadvisor%3Alatest)
+      - /var/run:/var/run:rw        # includes Docker socket for cAdvisor
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
       - /etc/localtime:/etc/localtime:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 #   pihole-exporter:
 #     image: ekofr/pihole-exporter:latest    # Pi-hole exporter for Prometheus
@@ -111,18 +120,20 @@ services:
 #     volumes:
 #       - /etc/localtime:/etc/localtime:ro
 # 
-#   fluent-bit:
-#     image: fluent/fluent-bit       # Fluent Bit log shipper (supports arm64)
-#     container_name: fluent-bit
-#     restart: unless-stopped
-#     user: root                          # Run as root to read system logs [oai_citation:7‡stackoverflow.com](https://stackoverflow.com/questions/64333292/how-to-access-logs-logged-in-journald-using-fluent-bit-thats-inside-a-docker-co#:~:text=1,bind%20%2Frun%2Flog%2Fjournal%3A%2Frun%2Flog%2Fjournal)
-#     network_mode: host                  # Use host network (so it can reach Loki via localhost and send logs)
-#     volumes:
-#       - /etc/localtime:/etc/localtime:ro
-#       - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro   # Fluent Bit config (see below)
-#       - /etc/machine-id:/etc/machine-id:ro        # Access host journald identifier [oai_citation:8‡stackoverflow.com](https://stackoverflow.com/questions/64333292/how-to-access-logs-logged-in-journald-using-fluent-bit-thats-inside-a-docker-co#:~:text=network_mode%3A%20host%20command%3A%20%2Ffluent,%2Frun%2Flog%2Fjournal%3A%2Frun%2Flog%2Fjournal)
-#       - /run/log/journal:/run/log/journal:ro      # Access host journald logs [oai_citation:9‡stackoverflow.com](https://stackoverflow.com/questions/64333292/how-to-access-logs-logged-in-journald-using-fluent-bit-thats-inside-a-docker-co#:~:text=network_mode%3A%20host%20command%3A%20%2Ffluent,%2Frun%2Flog%2Fjournal%3A%2Frun%2Flog%2Fjournal)
-#     # (Optionally, mount /var/log if needed to tail specific log files)
+  fluent-bit:
+    image: fluent/fluent-bit       # Fluent Bit log shipper (supports arm64)
+    container_name: fluent-bit
+    restart: unless-stopped
+    user: root                          # Run as root to read system logs
+    network_mode: host                  # Use host network (so it can reach Loki via localhost)
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - /etc/machine-id:/etc/machine-id:ro        # Access host journald identifier
+      - /run/log/journal:/run/log/journal:ro      # Access host journald logs
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro  # Docker container logs
+      - /var/log:/var/log:ro                      # Host logs (syslog, etc.)
     
 volumes:
   prometheus-data:
