@@ -4,7 +4,10 @@ A Docker-based monitoring stack using Prometheus, Grafana, Loki, and Fluent Bit.
 
 ## Requirements
 
-A functioning Tailscale network, and the associated IP addresses for each host, is required for this stack to work.
+There are a number of requirements/presumptions in order to run this project:
+- An existing Docker setup
+- A functioning Tailscale network, and the associated IP addresses for each host, is required for this stack to work.
+- A revese proxy setup of some form - I use Traefik, and Grafana has the relevant tags as a result, but you could sub out any of the other Docker-focused reverse proxies.
 
 ## Architecture
 
