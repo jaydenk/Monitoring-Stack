@@ -18,7 +18,7 @@ scrape_configs:
         labels:
           hostname: 'capsicum'
       - targets:
-          - '100.102.170.100:9100'  # chipotle
+          - '100.117.247.128:9100'  # chipotle
         labels:
           hostname: 'chipotle'
       - targets:
@@ -30,7 +30,7 @@ scrape_configs:
       - targets: 
           - '100.117.69.115:8080'   # pimento
           - '100.121.35.12:8080'    # capsicum
-          - '100.102.170.100:8081'  # chipotle
+          - '100.117.247.128:8081'  # chipotle
           - '100.100.211.122:8081'  # dev.dailyword
   - job_name: unifi
     static_configs:
