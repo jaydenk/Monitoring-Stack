@@ -1,0 +1,75 @@
+services:
+  node-exporter:
+    image: prom/node-exporter       # Use an image tag that supports ARMv7
+    container_name: node-exporter
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /etc/localtime:/etc/localtime:ro
+      - metrics_data:/textfile_collector:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.ignored-mount-points"
+      - "^/(rootfs/)?(dev|etc|host|proc|run|sys|volume1)($$|/)"
+      - '--collector.textfile.directory=/textfile_collector'
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor   # Multi-arch image (will pull arm variant for Pi 3)
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "${TAILSCALE_IP}:${CADVISOR_PORT:-8080}:8080"   # Bind to Tailscale IP only (set TAILSCALE_IP and optionally CADVISOR_PORT in .env)
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /etc/localtime:/etc/localtime:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+#   pihole-exporter:
+#     image: ekofr/pihole-exporter:latest
+#     container_name: pihole-exporter
+#     restart: unless-stopped
+#     environment:
+#       - PIHOLE_HOSTNAME=127.0.0.1            # Pi-hole on this host (capsicum)
+#       - PIHOLE_PASSWORD=<API_TOKEN>          # Pi-hole API token for capsicum’s Pi-hole
+#       - PORT=9617
+#     ports:
+#       - "9617:9617"
+# 
+  fluent-bit:
+    image: fluent/fluent-bit       # Fluent Bit log shipper (supports arm64)
+    container_name: fluent-bit
+    restart: unless-stopped
+    user: root
+    network_mode: host
+    environment:
+      - NODE_HOSTNAME=${NODE_HOSTNAME}   # Set in .env for log labels
+      - LD_PRELOAD=                      # Disable jemalloc (fixes 16KB page size issue on ARM64)
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./fluent-bit/fluent-bit-node.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+      
+volumes:
+    metrics_data:
+        external: true
+        name: server_metrics_data
