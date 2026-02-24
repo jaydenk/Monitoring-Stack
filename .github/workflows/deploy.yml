@@ -1,0 +1,42 @@
+name: Deploy to Portainer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker-compose-server.yml'
+      - 'docker-compose-node.yml'
+      - 'prometheus/**'
+      - 'fluent-bit/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: pimento
+            webhook_secret: PORTAINER_WEBHOOK_PIMENTO
+          - name: chipotle
+            webhook_secret: PORTAINER_WEBHOOK_CHIPOTLE
+          - name: dailyword
+            webhook_secret: PORTAINER_WEBHOOK_DAILYWORD
+    name: Deploy ${{ matrix.name }}
+    steps:
+      - name: Trigger Portainer redeploy
+        run: |
+          curl_exit=0
+          http_status=$(curl -sS -o /tmp/portainer_webhook_response.txt -w "%{http_code}" -X POST \
+            -H "CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}" \
+            -H "CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
+            "${{ secrets[matrix.webhook_secret] }}") || curl_exit=$?
+
+          if [[ "$curl_exit" -ne 0 || ! "$http_status" =~ ^2 ]]; then
+            echo "::warning title=${{ matrix.name }} webhook failed::curl_exit=${curl_exit}, http_status=${http_status}. Existing stack kept running."
+            if [[ -s /tmp/portainer_webhook_response.txt ]]; then
+              echo "Webhook response:"
+              cat /tmp/portainer_webhook_response.txt
+            fi
+          else
+            echo "${{ matrix.name }}: Portainer webhook triggered (HTTP ${http_status})."
+          fi

@@ -35,56 +35,66 @@ Monitored Hosts (nodes)              Central Server
 
 ## Deployment
 
+Stacks are managed by **Portainer** and automatically redeployed via GitHub Actions when configuration changes are pushed to `main`.
+
 There are two compose files:
 
-- **`docker-compose-server.yml`** -- Full stack (Prometheus, Grafana, Loki, exporters, Fluent Bit)
-- **`docker-compose-node.yml`** -- Exporters only (Node Exporter, cAdvisor, Fluent Bit) for monitored hosts
+- **`docker-compose-server.yml`** -- Full stack (Prometheus, Grafana, Loki, exporters, Fluent Bit) — runs on pimento
+- **`docker-compose-node.yml`** -- Exporters only (Node Exporter, cAdvisor, Fluent Bit) — runs on each monitored host
 
-### Server setup
+### How it works
 
-1. Copy `.env.example` to `.env` and fill in your values:
-   ```bash
-   cp .env.example .env
-   ```
+1. Push changes to `main` that touch compose files, `prometheus/`, or `fluent-bit/` configs
+2. GitHub Actions workflow (`.github/workflows/deploy.yml`) fires
+3. Workflow POSTs to Portainer webhook URLs for each stack (pimento, chipotle, dev.dailyword)
+4. Portainer pulls the latest repo and redeploys the stack on each host
 
-2. Set `COMPOSE_FILE=docker-compose-server.yml` and configure `HOSTNAME` for Traefik routing.
+### Initial setup — Portainer agent
 
-3. Create the external Docker network:
-   ```bash
-   docker network create proxy
-   ```
+Each remote host needs the Portainer agent running so Portainer can manage it:
 
-4. Start the stack:
-   ```bash
-   docker compose up -d
-   ```
+```bash
+cd agent/
+docker compose up -d
+```
 
-### Node setup
+Then register the host as an environment in the Portainer UI.
 
-Copy the repository to each monitored host, then:
+### Initial setup — creating stacks in Portainer
 
-1. Create a `.env` file:
-   ```
-   COMPOSE_FILE=docker-compose-node.yml
-   TAILSCALE_IP=100.x.x.x
-   NODE_HOSTNAME=myhost
-   ```
+For each host, create a stack in Portainer:
 
-2. Optionally set `CADVISOR_PORT` if port 8080 conflicts (defaults to 8080).
+1. **Source**: Git repository → this repo
+2. **Compose file**:
+   - pimento (server): `docker-compose-server.yml`
+   - chipotle / dev.dailyword (nodes): `docker-compose-node.yml`
+3. **Environment variables**: Set the required vars from `.env.example` (e.g. `HOSTNAME`, `TAILSCALE_IP`, `NODE_HOSTNAME`, `CADVISOR_PORT`)
+4. **Enable webhook** on the stack and copy the webhook URL
+5. **Pimento only**: Ensure the `proxy` Docker network exists (`docker network create proxy`)
 
-3. Start:
-   ```bash
-   docker compose up -d
-   ```
+### Initial setup — GitHub Actions secrets
+
+Add these secrets to the GitHub repo:
+
+| Secret | Purpose |
+|--------|---------|
+| `CF_ACCESS_CLIENT_ID` | Cloudflare Access service token (for Portainer tunnel) |
+| `CF_ACCESS_CLIENT_SECRET` | Cloudflare Access service token secret |
+| `PORTAINER_WEBHOOK_PIMENTO` | Webhook URL for the server stack |
+| `PORTAINER_WEBHOOK_CHIPOTLE` | Webhook URL for the chipotle node stack |
+| `PORTAINER_WEBHOOK_DAILYWORD` | Webhook URL for the dev.dailyword node stack |
 
 ### Adding a new host
 
-1. Deploy the node compose on the new host (see above).
-2. Add the host's Tailscale IP to `prometheus/prometheus.yml` under the `node-exporter` and `cadvisor` scrape jobs.
-3. Reload Prometheus:
-   ```bash
-   curl -X POST http://localhost:9090/-/reload
-   ```
+1. Deploy the Portainer agent on the new host (`agent/docker-compose.yml`)
+2. Register the host as an environment in Portainer
+3. Create a stack in Portainer pointing to this repo with `docker-compose-node.yml`
+4. Set environment variables (`TAILSCALE_IP`, `NODE_HOSTNAME`, `CADVISOR_PORT`)
+5. Enable the webhook and copy the URL
+6. Add the webhook URL as a new secret in GitHub (e.g. `PORTAINER_WEBHOOK_NEWHOST`)
+7. Add the new host to the matrix in `.github/workflows/deploy.yml`
+8. Add the host's Tailscale IP to `prometheus/prometheus.yml` under the scrape jobs
+9. Reload Prometheus: `curl -X POST http://localhost:9090/-/reload`
 
 ## Configuration files
 
