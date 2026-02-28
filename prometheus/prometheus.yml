@@ -28,7 +28,7 @@ scrape_configs:
       - targets:
           - '100.125.189.34:9100'   # bookmaker
         labels:
-          hostname: 'bookmaker'
+          hostname: 'storybloom-prod'
   - job_name: cadvisor
     static_configs:
       - targets: 
