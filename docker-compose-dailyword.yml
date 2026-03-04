@@ -19,7 +19,7 @@ services:
       - '--collector.textfile.directory=/textfile_collector'
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor   # Multi-arch image (will pull arm variant for Pi 3)
+    image: ghcr.io/google/cadvisor:v0.54.0   # Pinned - v0.54.1+ has label regression, gcr.io latest is stale
     container_name: cadvisor
     restart: unless-stopped
     ports:
