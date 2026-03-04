@@ -17,7 +17,7 @@ services:
       - "^/(rootfs/)?(dev|etc|host|proc|run|sys|volume1)($$|/)" 
 
   cadvisor:
-    image: ghcr.io/google/cadvisor:v0.54.0   # Pinned - v0.54.1+ has label regression, gcr.io latest is stale
+    image: ghcr.io/google/cadvisor:0.56.2   # Pinned - gcr.io registry is stale, use ghcr.io
     container_name: cadvisor
     restart: unless-stopped
     ports:

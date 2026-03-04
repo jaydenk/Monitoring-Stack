@@ -86,7 +86,7 @@ services:
       - "^/(rootfs/)?(dev|etc|host|proc|run|sys|volume1)($$|/)"  # Ignore pseudo FS and Synology volumes [oai_citation:3‡github.com](https://github.com/ddiiwoong/synology-prometheus/blob/master/docker-compose.yml#:~:text=)
 
   cadvisor:
-    image: ghcr.io/google/cadvisor:v0.54.0  # cAdvisor for Docker metrics (pinned - v0.54.1+ has label regression)
+    image: ghcr.io/google/cadvisor:0.56.2  # cAdvisor for Docker metrics (label regression fixed in 0.56.x)
     container_name: cadvisor
     restart: unless-stopped
     ports:
